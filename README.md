@@ -18,6 +18,7 @@
   - [Okta](#okta)
 - [HAR Walkthrough Example](#har-walkthrough-example)
 - [How to Determine Request Direction](#how-to-determine-request-direction)
+- [Beginner's Guide: How to tell who sent what (Entra vs IdP)](#beginners-guide-how-to-tell-who-sent-what-entra-vs-idp)
 - [Direct Federation Troubleshooting Checklist](#direct-federation-troubleshooting-checklist)
 - [Common Failure Patterns](#common-failure-patterns)
 - [Mental Model for Reading HAR Traces](#mental-model-for-reading-har-traces)
@@ -267,6 +268,88 @@ When reading a HAR, you need to know which side sent each SAML payload:
 
 Look at the request hostnames and HTTP methods: a POST to `login.srf` that includes `SAMLResponse` is the IdP returning the assertion to Entra ID.
 
+
+---
+
+## Beginner's Guide: How to tell who sent what (Entra vs IdP)
+
+If you're new to HARs, the subtle part is *who created* each SAML payload and *who it's being sent to*. These quick checks and examples will make that decision straightforward.
+
+Quick checklist to determine direction
+
+1. Identify the request that carries `SAMLRequest` or `SAMLResponse`.
+2. Check the request hostname (the `Host` / request URL):
+   - If the request target is an IdP hostname (e.g., `secureaccess.company.com`, `idp.example.com`, Okta org domain, `/adfs/ls`), the browser is contacting the IdP.
+   - If the request target is `login.microsoftonline.com` (or `login.srf`), the browser is posting the SAMLResponse back to Entra ID.
+3. Check the HTTP method:
+   - A GET with `SAMLRequest=` in the query string usually indicates an HTTP-Redirect binding (Entra or the app issued a redirect to the IdP).
+   - A POST with `SAMLRequest` in form data means the browser is posting the SAMLRequest to the IdP (HTTP-POST binding).
+   - A POST with `SAMLResponse` in form data to `login.srf` indicates the IdP returned a SAML assertion to Entra.
+4. Inspect the response that caused the browser to make the request:
+   - Look for a 302/303 response from an Entra-hosted URL that contains a `Location:` header pointing to an IdP with `SAMLRequest=` — that shows Entra issued the redirect.
+   - If you see a 200 response from an IdP login page followed by a POST to `login.srf`, the IdP authenticated the user and posted the assertion back.
+
+Concrete HAR examples (what you'll see in the HAR viewer)
+
+- Example A — Entra issues redirect to IdP (HTTP-Redirect binding):
+
+  - Response (from `login.microsoftonline.com`): 302 Location: `https://idp.example.com/idp/startSSO?p=SAMLRequest=...&RelayState=abc123`
+  - In HAR: the Entra response has a `Location` header with an IdP URL that contains `SAMLRequest=`. This proves Entra started the flow and redirected the browser to the IdP.
+
+- Example B — Browser posts SAMLRequest to IdP (HTTP-POST binding):
+
+  - Request: POST `https://idp.example.com/idp/profile/SAML2/POST/SSO`
+  - Request body (form data): `SAMLRequest=...` `RelayState=abc123`
+  - In HAR: check the request -> Form Data section. If `SAMLRequest` is present there, the browser is posting to the IdP.
+
+- Example C — IdP posts SAMLResponse back to Entra:
+
+  - Request: POST `https://login.microsoftonline.com/login.srf`
+  - Request body: `SAMLResponse=...` `RelayState=abc123`
+  - In HAR: the POST target is `login.srf` and the form data includes `SAMLResponse` — this is the IdP returning the assertion to Entra.
+
+How to inspect these fields in common HAR viewers / devtools
+
+- Chrome / Edge DevTools: Network tab -> find the request -> click -> Headers shows Request URL and Response headers; under "Payload" or "Form Data" you'll see `SAMLRequest`/`SAMLResponse`/`RelayState`.
+- Firefox: Network tab -> click request -> "Request" -> "Post" or "Query" sections show form/query parameters.
+- If you have a .har file, load it in the browser's devtools or use an online HAR viewer and inspect the request's querystring / postData.text.
+
+Decoding SAML payloads (quick help)
+
+SAMLRequest and SAMLResponse are base64-encoded. They may also be DEFLATE-compressed (HTTP-Redirect binding) before base64. To inspect the XML:
+
+- Quick Python one-liner (POST binding usually base64-encoded XML):
+
+```python
+# decode base64 SAMLResponse (no deflate)
+import base64
+print(base64.b64decode("<paste-base64-here>").decode('utf-8'))
+```
+
+- If the SAML is deflated (redirect binding) you may need to inflate first:
+
+```python
+import base64, zlib
+data = base64.b64decode("<paste-base64-here>")
+xml = zlib.decompress(data, -15)  # -15 window to omit zlib headers
+print(xml.decode('utf-8'))
+```
+
+Safety: never paste production tokens or user identifiers into public tools. Redact or run decoding locally.
+
+Tips to speed up HAR triage
+
+- Filter the HAR list by `SAMLRequest`, `SAMLResponse`, `RelayState`, or by hostname `login.microsoftonline.com` or the IdP host.
+- Look for the first redirect away from Entra's hostname — that's usually the point Entra handed control to the IdP.
+- Use the request timestamps to follow the sequence: Entra -> (redirect) -> IdP login -> (POST) -> Entra.
+- When in doubt, follow the `RelayState` value: it starts with Entra's SAMLRequest and should be returned exactly with the SAMLResponse.
+
+Checklist: determining who initiated the SAML payload
+
+- If the SAML payload appears as a query string parameter in a Location header on a response from an Entra URL: Entra created the request and redirected the browser.
+- If the SAML payload appears in the request body (Form Data) of a POST to `login.srf`: the IdP posted the assertion back to Entra.
+- If you see a POST to an IdP endpoint with `SAMLRequest` in Form Data: the browser is delivering Entra's SAMLRequest to the IdP.
+
 ---
 
 ## Direct Federation Troubleshooting Checklist
@@ -302,6 +385,6 @@ Look at the request hostnames and HTTP methods: a POST to `login.srf` that inclu
 
 If you'd like, I can:
 
-- Add a concrete HAR example with request/response snippets (redacting any sensitive tokens).
-- Add troubleshooting examples for specific IdPs (PingFederate, ADFS, Okta).
+- Add a concrete, redacted HAR example with request/response snippets and decoded XML.
+- Add IdP-specific troubleshooting examples for PingFederate, ADFS, and Okta.
 

@@ -19,9 +19,25 @@
 - [HAR Walkthrough Example](#har-walkthrough-example)
 - [How to Determine Request Direction](#how-to-determine-request-direction)
 - [Beginner's Guide: How to tell who sent what (Entra vs IdP)](#beginners-guide-how-to-tell-who-sent-what-entra-vs-idp)
+  - [Quick checklist to determine direction](#quick-checklist-to-determine-direction)
+  - [Concrete HAR examples (what you'll see in the HAR viewer)](#concrete-har-examples-what-youll-see-in-the-har-viewer)
+  - [How to inspect these fields in common HAR viewers / devtools](#how-to-inspect-these-fields-in-common-har-viewers--devtools)
+  - [Decoding SAML payloads (quick help)](#decoding-saml-payloads-quick-help)
+  - [Tips to speed up HAR triage](#tips-to-speed-up-har-triage)
+  - [Checklist: determining who initiated the SAML payload](#checklist-determining-who-initiated-the-saml-payload)
 - [Direct Federation Troubleshooting Checklist](#direct-federation-troubleshooting-checklist)
 - [Common Failure Patterns](#common-failure-patterns)
 - [Mental Model for Reading HAR Traces](#mental-model-for-reading-har-traces)
+- [Extra help for beginners — how to tell who sent the SAML message (Entra vs IdP)](#extra-help-for-beginners--how-to-tell-who-sent-the-saml-message-entra-vs-idp)
+  - [1) Quick decision checklist (start here)](#1-quick-decision-checklist-start-here)
+  - [2) Concrete, minimal HAR examples (what to look at in the Network panel)](#2-concrete-minimal-har-examples-what-to-look-at-in-the-network-panel)
+  - [3) Fields to inspect in devtools / HAR viewer](#3-fields-to-inspect-in-devtools--har-viewer)
+  - [4) How to decode SAML safely (inspect XML locally, redact before sharing)](#4-how-to-decode-saml-safely-inspect-xml-locally-redact-before-sharing)
+  - [5) Helpful jq filters for big HARs (search HAR file for entries)](#5-helpful-jq-filters-for-big-hars-search-har-file-for-entries)
+  - [6) Practical heuristics and red flags](#6-practical-heuristics-and-red-flags)
+  - [7) What to capture when escalating](#7-what-to-capture-when-escalating)
+  - [8) Pocket triage checklist (copyable)](#8-pocket-triage-checklist-copyable)
+  - [9) Common beginner mistakes](#9-common-beginner-mistakes)
 
 This document explains how to analyze HAR traces for Microsoft Entra ID Direct Federation scenarios involving external SAML Identity Providers (IdPs) such as:
 
@@ -45,7 +61,7 @@ Most HAR traces contain hundreds of requests. In reality, only a few requests ar
 
 ## Overview
 
-Direct Federation is a configuration where Microsoft Entra ID delegates authentication of external users to a partner SAML IdP. Entra ID does not authenticate the external user's password; instead it relies on the partner IdP's SAML assertion.
+Direct Federation is a configuration where Microsoft Entra ID delegates authentication of external users to a partner SAML IdP. Entra ID does not authenticate the external user's password; instead[...]
 
 A successful flow looks like:
 
@@ -182,7 +198,7 @@ RelayState commonly contains:
 - Redirect information
 - Session/federation transaction state
 
-Important: If Entra sends a SAMLRequest with `RelayState=abc123`, the external IdP must return the SAMLResponse with the identical `RelayState=abc123`. Failure to preserve RelayState can cause Entra ID to lose context about the authentication request and fail the flow.
+Important: If Entra sends a SAMLRequest with `RelayState=abc123`, the external IdP must return the SAMLResponse with the identical `RelayState=abc123`. Failure to preserve RelayState can cause En[...]
 
 ---
 
@@ -246,7 +262,7 @@ Okta may use endpoints under the customer domain or org-specific paths. Look for
 
 ## HAR Walkthrough Example
 
-(Include a short, focused example HAR walk-through here. For real troubleshooting, extract only the requests that show `SAMLRequest`, IdP redirects, the `SAMLResponse` POST back to Entra ID, and the final redirect to the application.)
+(Include a short, focused example HAR walk-through here. For real troubleshooting, extract only the requests that show `SAMLRequest`, IdP redirects, the `SAMLResponse` POST back to Entra ID, and [...]
 
 Example sequence to extract from a HAR:
 
@@ -275,7 +291,7 @@ Look at the request hostnames and HTTP methods: a POST to `login.srf` that inclu
 
 If you're new to HARs, the subtle part is *who created* each SAML payload and *who it's being sent to*. These quick checks and examples will make that decision straightforward.
 
-Quick checklist to determine direction
+### Quick checklist to determine direction
 
 1. Identify the request that carries `SAMLRequest` or `SAMLResponse`.
 2. Check the request hostname (the `Host` / request URL):
@@ -289,7 +305,7 @@ Quick checklist to determine direction
    - Look for a 302/303 response from an Entra-hosted URL that contains a `Location:` header pointing to an IdP with `SAMLRequest=` — that shows Entra issued the redirect.
    - If you see a 200 response from an IdP login page followed by a POST to `login.srf`, the IdP authenticated the user and posted the assertion back.
 
-Concrete HAR examples (what you'll see in the HAR viewer)
+### Concrete HAR examples (what you'll see in the HAR viewer)
 
 - Example A — Entra issues redirect to IdP (HTTP-Redirect binding):
 
@@ -308,13 +324,13 @@ Concrete HAR examples (what you'll see in the HAR viewer)
   - Request body: `SAMLResponse=...` `RelayState=abc123`
   - In HAR: the POST target is `login.srf` and the form data includes `SAMLResponse` — this is the IdP returning the assertion to Entra.
 
-How to inspect these fields in common HAR viewers / devtools
+### How to inspect these fields in common HAR viewers / devtools
 
-- Chrome / Edge DevTools: Network tab -> find the request -> click -> Headers shows Request URL and Response headers; under "Payload" or "Form Data" you'll see `SAMLRequest`/`SAMLResponse`/`RelayState`.
+- Chrome / Edge DevTools: Network tab -> find the request -> click -> Headers shows Request URL and Response headers; under "Payload" or "Form Data" you'll see `SAMLRequest`/`SAMLResponse`/`Relay[...]
 - Firefox: Network tab -> click request -> "Request" -> "Post" or "Query" sections show form/query parameters.
 - If you have a .har file, load it in the browser's devtools or use an online HAR viewer and inspect the request's querystring / postData.text.
 
-Decoding SAML payloads (quick help)
+### Decoding SAML payloads (quick help)
 
 SAMLRequest and SAMLResponse are base64-encoded. They may also be DEFLATE-compressed (HTTP-Redirect binding) before base64. To inspect the XML:
 
@@ -337,14 +353,14 @@ print(xml.decode('utf-8'))
 
 Safety: never paste production tokens or user identifiers into public tools. Redact or run decoding locally.
 
-Tips to speed up HAR triage
+### Tips to speed up HAR triage
 
 - Filter the HAR list by `SAMLRequest`, `SAMLResponse`, `RelayState`, or by hostname `login.microsoftonline.com` or the IdP host.
 - Look for the first redirect away from Entra's hostname — that's usually the point Entra handed control to the IdP.
 - Use the request timestamps to follow the sequence: Entra -> (redirect) -> IdP login -> (POST) -> Entra.
 - When in doubt, follow the `RelayState` value: it starts with Entra's SAMLRequest and should be returned exactly with the SAMLResponse.
 
-Checklist: determining who initiated the SAML payload
+### Checklist: determining who initiated the SAML payload
 
 - If the SAML payload appears as a query string parameter in a Location header on a response from an Entra URL: Entra created the request and redirected the browser.
 - If the SAML payload appears in the request body (Form Data) of a POST to `login.srf`: the IdP posted the assertion back to Entra.
@@ -383,27 +399,24 @@ Checklist: determining who initiated the SAML payload
 
 ---
 
-If you'd like, I can:
-
-- Add a concrete, redacted HAR example with request/response snippets and decoded XML.
-- Add IdP-specific troubleshooting examples for PingFederate, ADFS, and Okta.
-
 ## Extra help for beginners — how to tell who sent the SAML message (Entra vs IdP)
 
 Problem most people see: HARs are noisy and it's not obvious whether Entra ID initiated a redirect or the external IdP sent a SAMLRequest / SAMLResponse. Use the checks below to decide reliably.
 
-1) Quick decision checklist (start here)
+### 1) Quick decision checklist (start here)
+
 - Find the request that contains SAMLRequest or SAMLResponse (query string or form data).
 - Check the Request URL / Host:
   - IdP host (e.g., idp.example.com, secureaccess.company.com, customer-okta-domain, or paths like /adfs/ls/) → browser is contacting the IdP.
   - login.microsoftonline.com (often POST to /login.srf) → browser is posting back to Entra ID.
 - Check HTTP method and where the SAML parameter is:
   - GET (or Location header with SAMLRequest in the query) → HTTP-Redirect binding (redirection).
-  - POST with SAMLRequest in form data to an IdP endpoint → browser delivered Entra’s SAMLRequest to the IdP (HTTP-POST binding).
+  - POST with SAMLRequest in form data to an IdP endpoint → browser delivered Entra's SAMLRequest to the IdP (HTTP-POST binding).
   - POST with SAMLResponse in form data to login.srf → IdP posted the assertion to Entra ID.
 - Check RelayState: the same value must travel with the SAMLRequest and SAMLResponse — use it to link the two.
 
-2) Concrete, minimal HAR examples (what to look at in the Network panel)
+### 2) Concrete, minimal HAR examples (what to look at in the Network panel)
+
 - Entra issued redirect (HTTP-Redirect)
   - Response: status 302 from login.microsoftonline.com
   - Response header: Location: https://idp.example.com/idp/startSSO?SAMLRequest=...&RelayState=abc123
@@ -412,14 +425,15 @@ Problem most people see: HARs are noisy and it's not obvious whether Entra ID in
 - Browser posts SAMLRequest to IdP (HTTP-POST)
   - Request: POST https://idp.example.com/idp/SAML2/POST/SSO
   - Form data: SAMLRequest=<base64...> ; RelayState=abc123
-  - Interpretation: Browser is sending Entra’s SAMLRequest to the IdP.
+  - Interpretation: Browser is sending Entra's SAMLRequest to the IdP.
 
 - IdP posts SAMLResponse back to Entra
   - Request: POST https://login.microsoftonline.com/login.srf
   - Form data: SAMLResponse=<base64...> ; RelayState=abc123
   - Interpretation: IdP returned the assertion to Entra.
 
-3) Fields to inspect in devtools / HAR viewer
+### 3) Fields to inspect in devtools / HAR viewer
+
 - Request URL and Hostname (top line).
 - HTTP method (GET vs POST).
 - Response status (302 with Location means redirect).
@@ -428,7 +442,8 @@ Problem most people see: HARs are noisy and it's not obvious whether Entra ID in
 - Initiator and timing columns — to reconstruct sequence.
 - Response body (if Entra returns an HTML error after SAMLResponse, it may include a human-readable reason).
 
-4) How to decode SAML safely (inspect XML locally, redact before sharing)
+### 4) How to decode SAML safely (inspect XML locally, redact before sharing)
+
 - POST binding: SAMLRequest / SAMLResponse are base64-encoded XML.
   - Python decode (POST binding):
     ```python
@@ -449,7 +464,8 @@ Problem most people see: HARs are noisy and it's not obvious whether Entra ID in
   - SAMLResponse: check Issuer, Subject/NameID, Audience (and AudienceRestriction), Destination/Recipient (should be Entra's login.srf), Conditions (NotBefore/NotOnOrAfter).
   - Signature: presence of a valid Signature element and, if possible, matching cert in IdP config.
 
-5) Helpful jq filters for big HARs (search HAR file for entries)
+### 5) Helpful jq filters for big HARs (search HAR file for entries)
+
 - Find POSTs containing SAMLResponse:
   jq:
   ```bash
@@ -461,7 +477,8 @@ Problem most people see: HARs are noisy and it's not obvious whether Entra ID in
   jq '.log.entries[] | select(.response.headers[]?; .name=="Location" and (.value|test("SAMLRequest"))) | {from:.request.url, location:(.response.headers[]|select(.name=="Location").value)}' big.har
   ```
 
-6) Practical heuristics and red flags
+### 6) Practical heuristics and red flags
+
 - First redirect away from an Entra hostname → likely Entra handed off to IdP.
 - POST to login.srf with SAMLResponse → IdP returned an assertion to Entra.
 - No SAMLResponse POST to login.srf after IdP login → IdP likely failed or returned an HTML error instead of SAMLResponse.
@@ -471,22 +488,31 @@ Problem most people see: HARs are noisy and it's not obvious whether Entra ID in
   - Signature/certificate issues
   - Clock skew (NotBefore/NotOnOrAfter)
 
-7) What to capture when escalating
-- Minimal relevant HAR snippet (redacted): the Entra redirect (response with Location and SAMLRequest) OR the POST that delivered SAMLRequest to IdP; the IdP login POSTs and the POST to login.srf that carries SAMLResponse; Entra’s response to that POST.
+### 7) What to capture when escalating
+
+- Minimal relevant HAR snippet (redacted): the Entra redirect (response with Location and SAMLRequest) OR the POST that delivered SAMLRequest to IdP; the IdP login POSTs and the POST to login.srf with SAMLResponse.
 - Decoded, redacted SAMLResponse XML (remove NameID, emails, or other PII; remove certificate blocks if needed).
 - Timestamps (client time and system time) to check clock skew.
 - IdP logs around the same timestamps (if available).
 
-8) Pocket triage checklist (copyable)
+### 8) Pocket triage checklist (copyable)
+
 - Locate SAMLRequest or SAMLResponse.
 - If SAMLRequest appears in a Location header from login.microsoftonline.com → Entra initiated the redirect.
-- If SAMLRequest appears in POST Form Data to an IdP → browser delivered Entra’s request to IdP.
+- If SAMLRequest appears in POST Form Data to an IdP → browser delivered Entra's request to IdP.
 - If SAMLResponse appears in POST Form Data to login.srf → IdP posted assertion to Entra.
 - Verify RelayState matches between request and response.
-- If assertion reached Entra and Entra returned an error, copy Entra’s response body for clues.
+- If assertion reached Entra and Entra returned an error, copy Entra's response body for clues.
 
-9) Common beginner mistakes
+### 9) Common beginner mistakes
+
 - Treating GET and POST the same — GET is usually redirect (SAML in query), POST is form submission (SAML in body).
-- Not following RelayState — it’s the easiest way to tie the two sides of the transaction together.
+- Not following RelayState — it's the easiest way to tie the two sides of the transaction together.
 - Sharing raw SAML without redacting — decode locally and redact before sharing.
 
+---
+
+If you'd like, I can:
+
+- Add a concrete, redacted HAR example with request/response snippets and decoded XML.
+- Add IdP-specific troubleshooting examples for PingFederate, ADFS, and Okta.

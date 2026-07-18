@@ -105,21 +105,18 @@ Guest Redemption / Application Access
 Example
 In this scenario, Kevin from Accenture wants to access resources in the PWC tenant (the resource tenant).
 
-Kevin attempts to access a PWC application or resource.
-PWC's Entra ID sees that Kevin's email domain belongs to a partner organization configured for Direct Federation.
-Instead of authenticating Kevin itself, PWC's Entra ID redirects Kevin's browser to Accenture's external SAML Identity Provider (PingFederate, ADFS, Okta, etc.).
-Accenture's IdP authenticates Kevin using Accenture's authentication methods (password, MFA, smart card, etc.).
-After successful authentication, the external IdP generates a SAML Response containing claims about Kevin and sends it back to Microsoft Entra ID.
-Microsoft Entra ID validates:
-
-The SAML signature
-The signing certificate
-The issuer
-The audience
-The federation configuration
-
-
-If validation succeeds, Entra ID establishes a session for Kevin and allows him to access the PWC resource. If this is Kevin's first access, he may be taken through the B2B invitation redemption process.
+1. Kevin attempts to access a PWC application or resource.
+2. PWC's Entra ID sees that Kevin's email domain belongs to a partner organization configured for Direct Federation.
+3. Instead of authenticating Kevin itself, PWC's Entra ID redirects Kevin's browser to Accenture's external SAML Identity Provider (PingFederate, ADFS, Okta, etc.).
+4. Accenture's IdP authenticates Kevin using Accenture's authentication methods (password, MFA, smart card, etc.).
+5. After successful authentication, the external IdP generates a SAML Response containing claims about Kevin and sends it back to Microsoft Entra ID.
+6. Microsoft Entra ID validates:
+- - The SAML signature
+- - The signing certificate
+- - The issuer
+- - The audience
+- -The federation configuration
+7. If validation succeeds, Entra ID establishes a session for Kevin and allows him to access the PWC resource. If this is Kevin's first access, he may be taken through the B2B invitation redemption process.
 ---
 
 ## How to Read a HAR Trace

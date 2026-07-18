@@ -108,6 +108,10 @@ In this scenario, Kevin from Accenture wants to access resources in the PWC tena
 1. Kevin attempts to access a PWC application or resource.
 2. PWC's Entra ID sees that Kevin's email domain belongs to a partner organization configured for Direct Federation.
 3. Instead of authenticating Kevin itself, PWC's Entra ID redirects Kevin's browser to Accenture's external SAML Identity Provider (PingFederate, ADFS, Okta, etc.).
+- This is where PWC Entra ID sends a SAML Authentication Request (AuthnRequest) to the external IdP. The external IdP then needs to returns a SAML Response after the user successfully authenticates.
+- The distinction matters because:
+- SAMLRequest = "Please authenticate this user"
+- SAMLResponse = "I authenticated the user, here is the signed assertion"
 4. Accenture's IdP authenticates Kevin using Accenture's authentication methods (password, MFA, smart card, etc.).
 5. After successful authentication, the external IdP generates a SAML Response containing claims about Kevin and sends it back to Microsoft Entra ID.
 6. Microsoft Entra ID validates:

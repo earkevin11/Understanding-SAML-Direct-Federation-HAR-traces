@@ -312,14 +312,18 @@ If you're new to HARs, the subtle part is *who created* each SAML payload and *w
 ### Quick checklist to determine direction
 
 1. Identify the request that carries `SAMLRequest` or `SAMLResponse`.
-2. Check the request hostname (the `Host` / request URL):
+
+3. Check the request hostname (the `Host` / request URL):
    - If the request target is an IdP hostname (e.g., `secureaccess.company.com`, `idp.example.com`, Okta org domain, `/adfs/ls`), the browser is contacting the IdP.
    - If the request target is `login.microsoftonline.com` (or `login.srf`), the browser is posting the SAMLResponse back to Entra ID.
-3. Check the HTTP method:
+4. Check the HTTP method:
    - A GET with `SAMLRequest=` in the query string usually indicates an HTTP-Redirect binding (Entra or the app issued a redirect to the IdP).
    - A POST with `SAMLRequest` in form data means the browser is posting the SAMLRequest to the IdP (HTTP-POST binding).
+   - <img width="1888" height="952" alt="image" src="https://github.com/user-attachments/assets/882d7645-9a6e-4f9e-8baf-13e9bc0d25f1" />
    - A POST with `SAMLResponse` in form data to `login.srf` indicates the IdP returned a SAML assertion to Entra.
-4. Inspect the response that caused the browser to make the request:
+   - <img width="1903" height="852" alt="image" src="https://github.com/user-attachments/assets/81cbf8ea-7b13-4920-90ef-9ebf23e19500" />
+
+5. Inspect the response that caused the browser to make the request:
    - Look for a 302/303 response from an Entra-hosted URL that contains a `Location:` header pointing to an IdP with `SAMLRequest=` — that shows Entra issued the redirect.
    - If you see a 200 response from an IdP login page followed by a POST to `login.srf`, the IdP authenticated the user and posted the assertion back.
 

@@ -299,6 +299,10 @@ When reading a HAR, you need to know which side sent each SAML payload:
 - SAMLRequest originates from Entra ID and is sent to the IdP.
 - SAMLResponse originates from the IdP and is sent back to Entra ID.
 - RelayState should travel with the SAML payload and be preserved.
+- Per SAML 2.0 Bindings, Section 3.4.3: "If a RelayState value accompanies a SAML protocol message, the SAML peer MUST preserve it and associate the RelayState value with the corresponding SAML protocol response."
+ 
+Resolution
+The external SAML IDP must echo back the exact RelayState value it received in the AuthnRequest as part of its SAMLResponse POST to https://login.microsoftonline.com/login.srf. This is non-negotiable for ESTS federation flows.
 
 Look at the request hostnames and HTTP methods: a POST to `login.srf` that includes `SAMLResponse` is the IdP returning the assertion to Entra ID.
 
